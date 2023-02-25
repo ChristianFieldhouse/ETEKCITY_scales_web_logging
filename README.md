@@ -10,4 +10,4 @@ pico_code/main.py has the logic for turning those signals into the number displa
 The pi pico turns on an NodeMCU esp8266 module and sends over that number. The esp8266 then writes that number to google sheets Apps script, which
 takes that number and adds it to the sheet along with the date and time.
 
-Not shown in the above picture is an additional capacitor/transistor circuit to turn off the Pi Pico power regulator when idle, which still failed to make the system low-power enough to run on batteries for > 1 month. So I ended up powering the device via a usb into the esp8266, and then just using the 3v power out of the esp8266 instead of battery power.
+Not shown in the above picture is an additional capacitor+transistor timer circuit to turn off the Pi Pico power regulator when idle, which still failed to make the system low-power enough to run on batteries for > 1 month. So I ended up powering the device via a usb into the esp8266, and then just using the 3v power out of the esp8266 instead of battery power.
