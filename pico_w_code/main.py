@@ -1,5 +1,60 @@
 from machine import Pin
 import utime, time
+import network
+from umqtt.simple import MQTTClient
+import urequests
+
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect("Christian and Katie","thebears")
+while not wlan.isconnected():
+    time.sleep(1)
+    print("connecting...")
+print("connected")
+
+mqtt_server = '192.168.1.108'
+client_id = 'scales'
+topic_pub = b'PersonWeight'
+topic_msg = b'error-no-weight-detected'
+mqtt_user = 'scales'
+mqtt_password = 'scales_password'
+
+
+def sub_cb(topic, msg):
+    print("New message on topic {}".format(topic.decode('utf-8')))
+    msg = msg.decode('utf-8')
+    print(msg)
+
+def mqtt_connect():
+    client = MQTTClient(
+        client_id,
+        mqtt_server,
+        keepalive=3600,
+        user=mqtt_user,
+        password=mqtt_password,
+    )
+    client.set_callback(sub_cb)
+    client.connect()
+    print('Connected to %s MQTT Broker'%(mqtt_server))
+    return client
+
+def reconnect():
+    print('Failed to connect to the MQTT Broker. Reconnecting...')
+    time.sleep(5)
+    machine.reset()
+
+client = mqtt_connect()
+
+#try:
+#    
+#except OSError as e:
+#    reconnect()
+while False: # example mqtt code
+    client.publish(topic_pub, topic_msg)
+    print("published...")
+    client.subscribe(topic_pub)
+    print("subbed...")
+    time.sleep(3)
 
 p0 = Pin(0, Pin.IN)
 
@@ -19,19 +74,6 @@ def flicker():
     for i in range(4):
         led_pin.value(i%2)
         utime.sleep(0.25)
-
-while False: # code to debug esp triggering
-    esp_switch.on()
-    utime.sleep(1/20)
-    esp_switch.off()
-    utime.sleep(1)
-    esp_com.on()
-    utime.sleep(1/20)
-    esp_com.off()
-
-    utime.sleep(15)
-    print("uploaded??")
-    flicker()
 
 flicker()
 
@@ -99,38 +141,20 @@ def decode_numbers():
     #print(nums)
     return nums
 
-def write_to_esp(nums):
-
-    signal_tick_us = 2000
-
-    # make sure data line is low first...
-    esp_com.off()
-    # turn on the esp!
-    esp_switch.on()
-    utime.sleep(1/20)
-    esp_switch.off()
-
-    binary_strings = [
-        "0000" if n == "off" else f"{n:04b}"
+def write_to_mqtt(nums):
+    ints = [
+        0 if n == "off" else n
         for n in nums
     ]
-    print(binary_strings)
-    # go high to initiate transaction
-    utime.sleep(1/4)
-    start_transaction = time.ticks_us()
-    esp_com.on()
-    while time.ticks_us() < start_transaction + signal_tick_us:
-        pass
-    for i, bs in enumerate(binary_strings):
-        for j, a in enumerate(bs):
-            esp_com.value(a=="1")
-            while time.ticks_us() < start_transaction + signal_tick_us * (i*4 + j + 2):
-                pass
-    flicker()
+    mass = 10*ints[0] + ints[1] + ints[2]/10 + ints[3]/100
+    print(mass)
+    urequests.get(f"https://script.google.com/macros/s/AKfycbw8iF5K5Iih_rjRmajQIaBLrIAoKE9XwQ7Y7KUP7VbScaOH7w43FG4PcAfmSCLmKkec/exec?mass={mass}", data=None, json=None, headers={})
+    client.publish(topic_pub, f"{mass}")
+    
 
 fresh_reading = False
 nums = ["off"]*4
-while False:
+while True:
     # wait for a trigger in, then read number
     while not p0.value():
         pass
@@ -151,9 +175,8 @@ while False:
         # no more readings, write the last one and await the
         # next period of activity
         if fresh_reading:
-            print("writing to esp")
-            #write_to_esp([7, 5, 8, 0])
-            write_to_esp(nums)
+            print("writing to mqtt")
+            write_to_mqtt(nums)
             fresh_reading = False
         while p0.value():
             print("signal held high, waiting...")
